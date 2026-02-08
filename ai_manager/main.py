@@ -1,5 +1,5 @@
 # ai_manager/main.py
-from repo.synonym_repo import get_synonym_word_aggregates
+from ai_manager.repo.synonym_repo import get_synonym_word_aggregates
 
 def main():
     rows = get_synonym_word_aggregates(limit=10)
