@@ -1,6 +1,6 @@
 # ai_manager/repo/synonym_repo.py
 from typing import List, Dict
-from db import get_connection
+from ai_manager.db import get_connection
 
 SYNONYM_COURSE_IDS = (2, 3, 4, 5, 6, 7, 8, 9)
 
