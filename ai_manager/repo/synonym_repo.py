@@ -83,3 +83,76 @@ def get_synonym_word_aggregates(limit: int = 50) -> List[Dict]:
 
     return [dict(zip(cols, row)) for row in rows]
 
+def upsert_synonym_word_insights(rows: list, model_version: str = "phase1-v1"):
+    """
+    Controlled upsert into synonym_ai_word_insights.
+    Expects rows from get_synonym_word_aggregates().
+    """
+    sql = """
+        INSERT INTO public.synonym_ai_word_insights (
+            user_id,
+            lesson_id,
+            headword,
+            attempts_total,
+            attempts_incorrect,
+            accuracy_rate,
+            avg_response_ms,
+            last_attempt_at,
+            last_incorrect_at,
+            weakness_score,
+            evaluated_at,
+            model_version
+        )
+        VALUES (
+            %(user_id)s,
+            %(lesson_id)s,
+            %(headword)s,
+            %(attempts_total)s,
+            %(attempts_incorrect)s,
+            %(accuracy_rate)s,
+            %(avg_response_ms)s,
+            %(last_attempt_at)s,
+            %(last_incorrect_at)s,
+            %(weakness_score)s,
+            NOW(),
+            %(model_version)s
+        )
+        ON CONFLICT (user_id, lesson_id, headword)
+        DO UPDATE SET
+            attempts_total      = EXCLUDED.attempts_total,
+            attempts_incorrect  = EXCLUDED.attempts_incorrect,
+            accuracy_rate       = EXCLUDED.accuracy_rate,
+            avg_response_ms     = EXCLUDED.avg_response_ms,
+            last_attempt_at     = EXCLUDED.last_attempt_at,
+            last_incorrect_at   = EXCLUDED.last_incorrect_at,
+            weakness_score      = EXCLUDED.weakness_score,
+            evaluated_at        = NOW(),
+            model_version       = EXCLUDED.model_version;
+    """
+
+    payload = []
+    for r in rows:
+        payload.append({
+            "user_id": r["user_id"],
+            "lesson_id": r["lesson_id"],
+            "headword": r["headword"],
+            "attempts_total": r["attempts_total"],
+            "attempts_incorrect": r["attempts_incorrect"],
+            "accuracy_rate": r["accuracy_rate"],
+            "avg_response_ms": r["avg_response_ms"],
+            "last_attempt_at": r["last_attempt_at"],
+            "last_incorrect_at": r["last_incorrect_at"],
+            "weakness_score": r["weakness_score"],
+            "model_version": model_version,
+        })
+
+    if not payload:
+        return 0
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.executemany(sql, payload)
+        conn.commit()
+
+    return len(payload)
+
