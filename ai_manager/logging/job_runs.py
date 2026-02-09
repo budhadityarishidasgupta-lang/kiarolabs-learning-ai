@@ -38,7 +38,7 @@ def finish_job(
     processed_users: int = 0,
     processed_lessons: int = 0,
     processed_attempts: int = 0,
-    model_version: str = None,
+    model_version: str = "phase1-v1",
 ):
     sql = """
         UPDATE public.platform_ai_job_runs
@@ -61,7 +61,7 @@ def finish_job(
                     processed_users,
                     processed_lessons,
                     processed_attempts,
-                    model_version,
+                    model_version or "phase1-v1",
                     job_id,
                 ),
             )
