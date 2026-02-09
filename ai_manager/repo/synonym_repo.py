@@ -296,3 +296,22 @@ def upsert_synonym_lesson_insights(rows: List[Dict], model_version: str = "phase
         conn.commit()
 
     return len(payload)
+
+
+def update_synonym_lesson_summary(
+    user_id,
+    lesson_id,
+    summary_text,
+    model_version,
+):
+    sql = """
+        UPDATE public.synonym_ai_lesson_insights
+        SET summary_text = %s,
+            model_version = %s,
+            evaluated_at = NOW()
+        WHERE user_id = %s AND lesson_id = %s
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (summary_text, model_version, user_id, lesson_id))
+        conn.commit()

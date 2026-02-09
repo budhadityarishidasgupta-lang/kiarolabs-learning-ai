@@ -1,15 +1,34 @@
+import os
 from datetime import datetime, timezone
 
+from ai_manager.llm.client import generate_summary
+from ai_manager.llm.prompts import lesson_summary_prompt
 from ai_manager.logging.job_runs import finish_job, start_job
 from ai_manager.repo.synonym_repo import (
     get_synonym_lesson_rollups,
     get_synonym_word_aggregates,
+    update_synonym_lesson_summary,
     upsert_synonym_lesson_insights,
     upsert_synonym_word_insights,
 )
 from ai_manager.state.checkpoints import get_checkpoint, update_checkpoint
 
 JOB_NAME = "synonym_ai_phase1"
+ENABLE_LLM_SUMMARIES = os.getenv("ENABLE_LLM_SUMMARIES", "false").lower() == "true"
+
+
+def run_synonym_summaries(lesson_rows):
+    for row in lesson_rows:
+        prompt = lesson_summary_prompt(row)
+        summary = generate_summary(prompt)
+
+        if summary:
+            update_synonym_lesson_summary(
+                user_id=row["user_id"],
+                lesson_id=row["lesson_id"],
+                summary_text=summary,
+                model_version="phase1-v1+llm",
+            )
 
 
 def run_synonym_lane():
@@ -33,6 +52,9 @@ def run_synonym_lane():
             lesson_rows,
             model_version="phase1-v1",
         )
+
+        if ENABLE_LLM_SUMMARIES:
+            run_synonym_summaries(lesson_rows)
 
         update_checkpoint(JOB_NAME, datetime.now(timezone.utc))
         finish_job(job_id, "SUCCESS")
