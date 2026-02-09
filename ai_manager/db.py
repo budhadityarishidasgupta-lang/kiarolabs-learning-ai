@@ -1,4 +1,3 @@
-# ai_manager/db.py
 import os
 import psycopg2
 from contextlib import contextmanager
@@ -10,6 +9,9 @@ if not DATABASE_URL:
 
 @contextmanager
 def get_connection():
+    """
+    Context manager for psycopg2 connection.
+    """
     conn = psycopg2.connect(DATABASE_URL)
     try:
         yield conn

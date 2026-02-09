@@ -83,7 +83,7 @@ def get_synonym_word_aggregates(limit: int = 50) -> List[Dict]:
 
     return [dict(zip(cols, row)) for row in rows]
 
-def upsert_synonym_word_insights(rows: list, model_version: str = "phase1-v1"):
+def upsert_synonym_word_insights(rows: List[Dict], model_version: str = "phase1-v1") -> int:
     """
     Controlled upsert into synonym_ai_word_insights.
     Expects rows from get_synonym_word_aggregates().
