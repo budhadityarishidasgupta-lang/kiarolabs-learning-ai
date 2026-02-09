@@ -1,4 +1,5 @@
 # ai_manager/repo/synonym_repo.py
+import json
 from typing import List, Dict
 from ai_manager.db import get_connection
 
@@ -221,7 +222,7 @@ def upsert_synonym_lesson_insights(rows: List[Dict], model_version: str = "phase
             %(accuracy_rate)s,
             %(avg_response_ms)s,
             %(last_attempt_at)s,
-            %(top_weak_headwords)s,
+            %(top_weak_word_ids)s::jsonb,
             NULL,
             NOW(),
             %(model_version)s
@@ -246,7 +247,7 @@ def upsert_synonym_lesson_insights(rows: List[Dict], model_version: str = "phase
             "accuracy_rate": r["accuracy_rate"],
             "avg_response_ms": r["avg_response_ms"],
             "last_attempt_at": r["last_attempt_at"],
-            "top_weak_headwords": r["top_weak_word_ids"],
+            "top_weak_word_ids": json.dumps(r["top_weak_word_ids"]),
             "model_version": model_version,
         })
 
