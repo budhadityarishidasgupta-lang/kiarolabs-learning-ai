@@ -44,6 +44,7 @@ def run_synonym_lane():
 
         written_words = upsert_synonym_word_insights(
             rows,
+            job_run_id=job_run_id,
             model_version="phase1-v1",
         )
 
