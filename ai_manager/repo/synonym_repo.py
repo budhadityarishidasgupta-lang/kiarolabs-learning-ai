@@ -29,7 +29,7 @@ def get_synonym_word_aggregates(limit: int = 500, since_ts=None) -> List[Dict]:
             ) AS weakness_score
         FROM public.attempts a
         JOIN public.words w
-          ON LOWER(w.word) = LOWER(a.headword)
+          ON LOWER(w.headword) = LOWER(a.headword)
         WHERE a.course_id = ANY(%(course_ids)s)
           AND a.headword IS NOT NULL
           AND (%(since_ts)s IS NULL OR a.ts > %(since_ts)s)
