@@ -57,7 +57,12 @@ def run_synonym_lane():
             run_synonym_summaries(lesson_rows)
 
         update_checkpoint(JOB_NAME, datetime.now(timezone.utc))
-        finish_job(job_id, "SUCCESS")
+        finish_job(
+            job_id,
+            status="SUCCESS",
+            processed_attempts=len(rows),
+            model_version="phase1-v1",
+        )
 
         print(
             "Synonym AI job complete: "
@@ -66,7 +71,7 @@ def run_synonym_lane():
         )
 
     except Exception as e:
-        finish_job(job_id, "FAILED", str(e))
+        finish_job(job_id, status="FAILED", error_message=str(e))
         raise
 
 
