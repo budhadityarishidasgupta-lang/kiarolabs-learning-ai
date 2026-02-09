@@ -4,10 +4,11 @@ from ai_manager.db import get_connection
 
 SYNONYM_COURSE_IDS = (2, 3, 4, 5, 6, 7, 8, 9)
 
-def get_synonym_word_aggregates(limit: int = 50) -> List[Dict]:
+
+def get_synonym_word_aggregates(limit: int = 100, since_ts=None) -> List[Dict]:
     """
-    Read-only aggregation of Synonym attempts from legacy `attempts` table.
-    Groups by user_id, lesson_id, headword.
+    Aggregate synonym attempts.
+    If since_ts is provided, only process attempts after that timestamp.
     """
     sql = """
         SELECT
@@ -68,20 +69,28 @@ def get_synonym_word_aggregates(limit: int = 50) -> List[Dict]:
           ) AS weakness_score
 
         FROM attempts a
-        WHERE a.course_id = ANY(%s)
+        WHERE a.course_id = ANY(%(course_ids)s)
           AND a.archived_at IS NULL
+          AND (%(since_ts)s IS NULL OR a.ts > %(since_ts)s)
         GROUP BY a.user_id, a.lesson_id, a.headword
-        ORDER BY weakness_score DESC
-        LIMIT %s;
+        ORDER BY last_attempt_at DESC
+        LIMIT %(limit)s;
     """
+
+    params = {
+        "course_ids": list(SYNONYM_COURSE_IDS),
+        "since_ts": since_ts,
+        "limit": limit,
+    }
 
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(sql, (list(SYNONYM_COURSE_IDS), limit))
+            cur.execute(sql, params)
             rows = cur.fetchall()
             cols = [desc[0] for desc in cur.description]
 
     return [dict(zip(cols, row)) for row in rows]
+
 
 def upsert_synonym_word_insights(rows: List[Dict], model_version: str = "phase1-v1") -> int:
     """
@@ -155,4 +164,3 @@ def upsert_synonym_word_insights(rows: List[Dict], model_version: str = "phase1-
         conn.commit()
 
     return len(payload)
-
