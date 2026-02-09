@@ -11,7 +11,7 @@ JOB_NAME = "spelling_ai_phase1"
 
 
 def run_spelling_lane():
-    job_id = start_job(JOB_NAME)
+    job_id, job_run_id = start_job(JOB_NAME)
 
     try:
         since_ts = get_checkpoint(JOB_NAME)
@@ -36,7 +36,8 @@ def run_spelling_lane():
 
         print(
             "Spelling AI job complete: "
-            f"{written_words} word rows written"
+            f"{written_words} word rows written "
+            f"(run_id={job_run_id})"
         )
 
     except Exception as e:
