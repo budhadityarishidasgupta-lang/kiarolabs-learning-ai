@@ -132,14 +132,14 @@ def upsert_synonym_word_insights(rows: List[Dict], job_run_id: int = None, model
 def get_synonym_lesson_rollups(limit: int = 200) -> List[Dict]:
     """
     Build lesson-level rollups from synonym_ai_word_insights.
-    One row per (user_id, lesson_id), with top weak headwords.
+    One row per (user_id, lesson_id), with top weak word_ids.
     """
     sql = """
         WITH word_ranked AS (
             SELECT
                 user_id,
                 lesson_id,
-                headword,
+                word_id,
                 attempts_total,
                 attempts_incorrect,
                 accuracy_rate,
@@ -167,7 +167,7 @@ def get_synonym_lesson_rollups(limit: int = 200) -> List[Dict]:
             SELECT
                 user_id,
                 lesson_id,
-                jsonb_agg(headword ORDER BY rn) AS top_weak_headwords
+                jsonb_agg(word_id ORDER BY rn) AS top_weak_word_ids
             FROM word_ranked
             WHERE rn <= 5
             GROUP BY user_id, lesson_id
@@ -179,7 +179,7 @@ def get_synonym_lesson_rollups(limit: int = 200) -> List[Dict]:
             a.accuracy_rate,
             a.avg_response_ms,
             a.last_attempt_at,
-            COALESCE(t.top_weak_headwords, '[]'::jsonb) AS top_weak_headwords
+            COALESCE(t.top_weak_word_ids, '[]'::jsonb) AS top_weak_word_ids
         FROM lesson_agg a
         LEFT JOIN top_words t
           ON t.user_id = a.user_id AND t.lesson_id = a.lesson_id
@@ -246,7 +246,7 @@ def upsert_synonym_lesson_insights(rows: List[Dict], model_version: str = "phase
             "accuracy_rate": r["accuracy_rate"],
             "avg_response_ms": r["avg_response_ms"],
             "last_attempt_at": r["last_attempt_at"],
-            "top_weak_headwords": r["top_weak_headwords"],
+            "top_weak_headwords": r["top_weak_word_ids"],
             "model_version": model_version,
         })
 
