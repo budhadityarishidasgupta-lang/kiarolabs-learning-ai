@@ -1,9 +1,13 @@
 import os
-from dotenv import load_dotenv
 import psycopg2
 from contextlib import contextmanager
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    # dotenv is optional in prod (env vars may already be set)
+    pass
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -12,9 +16,6 @@ if not DATABASE_URL:
 
 @contextmanager
 def get_connection():
-    """
-    Context manager for psycopg2 connection.
-    """
     conn = psycopg2.connect(DATABASE_URL)
     try:
         yield conn
