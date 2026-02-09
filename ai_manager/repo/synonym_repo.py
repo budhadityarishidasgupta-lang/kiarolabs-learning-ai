@@ -5,92 +5,47 @@ from ai_manager.db import get_connection
 SYNONYM_COURSE_IDS = (2, 3, 4, 5, 6, 7, 8, 9)
 
 
-def get_synonym_word_aggregates(limit: int = 100, since_ts=None) -> List[Dict]:
+def get_synonym_word_aggregates(limit: int = 500, since_ts=None) -> List[Dict]:
     """
-    Aggregate synonym attempts.
-    If since_ts is provided, only process attempts after that timestamp.
+    Aggregate synonym attempts at word level.
+    Source of truth: public.attempts
+    Map attempts.sp_item_id -> synonym word_id (synonym_words.id).
     """
     sql = """
         SELECT
-          a.user_id,
-          a.course_id,
-          a.lesson_id,
-          a.word_id,
-
-          COUNT(*) AS attempts_total,
-
-          SUM(
-            CASE
-              WHEN a.is_correct = false THEN 1
-              ELSE 0
-            END
-          ) AS attempts_incorrect,
-
-          1.0 - (
-            SUM(
-              CASE
-                WHEN a.is_correct = false THEN 1
-                ELSE 0
-              END
-            )::numeric
-            / NULLIF(COUNT(*), 0)
-          ) AS accuracy_rate,
-
-          AVG(a.response_ms) AS avg_response_ms,
-
-          MAX(a.ts) AS last_attempt_at,
-
-          MAX(
-            CASE
-              WHEN a.is_correct = false THEN a.ts
-              ELSE NULL
-            END
-          ) AS last_incorrect_at,
-
-          (
-            (1.0 - (
-              SUM(
-                CASE
-                  WHEN a.is_correct = false THEN 1
-                  ELSE 0
-                END
-              )::numeric
-              / NULLIF(COUNT(*), 0)
-            )) * 0.7
-            +
+            a.user_id,
+            a.course_id,
+            a.lesson_id,
+            w.id AS word_id,
+            COUNT(*) AS attempts_total,
+            COUNT(*) FILTER (WHERE a.is_correct = FALSE) AS attempts_incorrect,
+            AVG(CASE WHEN a.is_correct THEN 1 ELSE 0 END) AS accuracy_rate,
+            AVG(a.response_ms) AS avg_response_ms,
+            MAX(a.ts) AS last_attempt_at,
+            MAX(a.ts) FILTER (WHERE a.is_correct = FALSE) AS last_incorrect_at,
             (
-              SUM(
-                CASE
-                  WHEN a.is_correct = false THEN 1
-                  ELSE 0
-                END
-              )::numeric
-              / NULLIF(COUNT(*), 0)
-            ) * 0.3
-          ) AS weakness_score
-
-        FROM attempts a
+                AVG(CASE WHEN a.is_correct THEN 1 ELSE 0 END) * 0.7
+                + (1 - AVG(CASE WHEN a.is_correct THEN 1 ELSE 0 END)) * 0.3
+            ) AS weakness_score
+        FROM public.attempts a
+        JOIN public.synonym_words w
+          ON w.id = a.sp_item_id
         WHERE a.course_id = ANY(%(course_ids)s)
-          AND a.archived_at IS NULL
+          AND a.sp_item_id IS NOT NULL
           AND (%(since_ts)s IS NULL OR a.ts > %(since_ts)s)
-        GROUP BY a.user_id, a.course_id, a.lesson_id, a.word_id
+        GROUP BY a.user_id, a.course_id, a.lesson_id, w.id
         ORDER BY last_attempt_at DESC
         LIMIT %(limit)s;
     """
 
-    params = {
-        "course_ids": list(SYNONYM_COURSE_IDS),
-        "since_ts": since_ts,
-        "limit": limit,
-    }
-
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(sql, params)
+            cur.execute(sql, {"course_ids": list(SYNONYM_COURSE_IDS), "since_ts": since_ts, "limit": limit})
             rows = cur.fetchall()
-            cols = [desc[0] for desc in cur.description]
+            cols = [d[0] for d in cur.description]
 
-    return [dict(zip(cols, row)) for row in rows]
+    return [dict(zip(cols, r)) for r in rows]
+
 
 
 def upsert_synonym_word_insights(rows: List[Dict], job_run_id: int = None, model_version: str = "phase1-v1") -> int:
