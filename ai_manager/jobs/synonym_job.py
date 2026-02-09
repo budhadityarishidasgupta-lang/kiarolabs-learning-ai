@@ -32,7 +32,7 @@ def run_synonym_summaries(lesson_rows):
 
 
 def run_synonym_lane():
-    job_id = start_job(JOB_NAME)
+    job_id, job_run_id = start_job(JOB_NAME)
 
     try:
         since_ts = get_checkpoint(JOB_NAME)
@@ -67,7 +67,8 @@ def run_synonym_lane():
         print(
             "Synonym AI job complete: "
             f"{written_words} word rows written, "
-            f"{written_lessons} lesson rows written"
+            f"{written_lessons} lesson rows written "
+            f"(run_id={job_run_id})"
         )
 
     except Exception as e:

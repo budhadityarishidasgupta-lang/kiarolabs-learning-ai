@@ -11,7 +11,7 @@ JOB_NAME = "math_ai_phase1"
 
 
 def run_math_lane():
-    job_id = start_job(JOB_NAME)
+    job_id, job_run_id = start_job(JOB_NAME)
 
     try:
         since_ts = get_checkpoint(JOB_NAME)
@@ -36,7 +36,8 @@ def run_math_lane():
 
         print(
             "Math AI job complete: "
-            f"{written_questions} question rows written"
+            f"{written_questions} question rows written "
+            f"(run_id={job_run_id})"
         )
 
     except Exception as e:
