@@ -13,8 +13,9 @@ def get_synonym_word_aggregates(limit: int = 100, since_ts=None) -> List[Dict]:
     sql = """
         SELECT
           a.user_id,
+          a.course_id,
           a.lesson_id,
-          a.headword,
+          a.word_id,
 
           COUNT(*) AS attempts_total,
 
@@ -72,7 +73,7 @@ def get_synonym_word_aggregates(limit: int = 100, since_ts=None) -> List[Dict]:
         WHERE a.course_id = ANY(%(course_ids)s)
           AND a.archived_at IS NULL
           AND (%(since_ts)s IS NULL OR a.ts > %(since_ts)s)
-        GROUP BY a.user_id, a.lesson_id, a.headword
+        GROUP BY a.user_id, a.course_id, a.lesson_id, a.word_id
         ORDER BY last_attempt_at DESC
         LIMIT %(limit)s;
     """
@@ -92,16 +93,17 @@ def get_synonym_word_aggregates(limit: int = 100, since_ts=None) -> List[Dict]:
     return [dict(zip(cols, row)) for row in rows]
 
 
-def upsert_synonym_word_insights(rows: List[Dict], model_version: str = "phase1-v1") -> int:
+def upsert_synonym_word_insights(rows: List[Dict], job_run_id: int = None, model_version: str = "phase1-v1") -> int:
     """
     Controlled upsert into synonym_ai_word_insights.
     Expects rows from get_synonym_word_aggregates().
     """
     sql = """
-        INSERT INTO public.synonym_ai_word_insights (
+        INSERT INTO synonym_ai_word_insights (
             user_id,
+            course_id,
             lesson_id,
-            headword,
+            word_id,
             attempts_total,
             attempts_incorrect,
             accuracy_rate,
@@ -110,12 +112,14 @@ def upsert_synonym_word_insights(rows: List[Dict], model_version: str = "phase1-
             last_incorrect_at,
             weakness_score,
             evaluated_at,
-            model_version
+            model_version,
+            job_run_id
         )
         VALUES (
             %(user_id)s,
+            %(course_id)s,
             %(lesson_id)s,
-            %(headword)s,
+            %(word_id)s,
             %(attempts_total)s,
             %(attempts_incorrect)s,
             %(accuracy_rate)s,
@@ -124,9 +128,10 @@ def upsert_synonym_word_insights(rows: List[Dict], model_version: str = "phase1-
             %(last_incorrect_at)s,
             %(weakness_score)s,
             NOW(),
-            %(model_version)s
+            %(model_version)s,
+            %(job_run_id)s
         )
-        ON CONFLICT (user_id, lesson_id, headword)
+        ON CONFLICT (user_id, lesson_id, word_id)
         DO UPDATE SET
             attempts_total      = EXCLUDED.attempts_total,
             attempts_incorrect  = EXCLUDED.attempts_incorrect,
@@ -136,23 +141,26 @@ def upsert_synonym_word_insights(rows: List[Dict], model_version: str = "phase1-
             last_incorrect_at   = EXCLUDED.last_incorrect_at,
             weakness_score      = EXCLUDED.weakness_score,
             evaluated_at        = NOW(),
-            model_version       = EXCLUDED.model_version;
+            model_version       = EXCLUDED.model_version,
+            job_run_id          = EXCLUDED.job_run_id;
     """
 
     payload = []
-    for r in rows:
+    for row in rows:
         payload.append({
-            "user_id": r["user_id"],
-            "lesson_id": r["lesson_id"],
-            "headword": r["headword"],
-            "attempts_total": r["attempts_total"],
-            "attempts_incorrect": r["attempts_incorrect"],
-            "accuracy_rate": r["accuracy_rate"],
-            "avg_response_ms": r["avg_response_ms"],
-            "last_attempt_at": r["last_attempt_at"],
-            "last_incorrect_at": r["last_incorrect_at"],
-            "weakness_score": r["weakness_score"],
+            "user_id": row["user_id"],
+            "course_id": row["course_id"],
+            "lesson_id": row["lesson_id"],
+            "word_id": row["word_id"],
+            "attempts_total": row["attempts_total"],
+            "attempts_incorrect": row["attempts_incorrect"],
+            "accuracy_rate": row["accuracy_rate"],
+            "avg_response_ms": row["avg_response_ms"],
+            "last_attempt_at": row["last_attempt_at"],
+            "last_incorrect_at": row["last_incorrect_at"],
+            "weakness_score": row["weakness_score"],
             "model_version": model_version,
+            "job_run_id": job_run_id,
         })
 
     if not payload:
