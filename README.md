@@ -32,3 +32,9 @@ CREATE TABLE IF NOT EXISTS public.platform_ai_job_checkpoints (
     last_processed_at TIMESTAMPTZ
 );
 ```
+
+For existing environments with schema drift on `platform_ai_job_runs`, run:
+
+```sql
+-- ai_manager/sql/platform_ai_job_runs_schema_drift_fix.sql
+```
