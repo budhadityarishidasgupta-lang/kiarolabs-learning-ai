@@ -9,14 +9,14 @@ def get_synonym_word_aggregates(limit: int = 500, since_ts=None) -> List[Dict]:
     """
     Aggregate synonym attempts at word level.
     Source of truth: public.attempts
-    Map attempts.sp_item_id -> canonical word_id (words.id).
+    Map attempts.sp_item_id -> canonical word_id (words.word_id).
     """
     sql = """
         SELECT
             a.user_id,
             a.course_id,
             a.lesson_id,
-            w.id AS word_id,
+            w.word_id AS word_id,
             COUNT(*) AS attempts_total,
             COUNT(*) FILTER (WHERE a.is_correct = FALSE) AS attempts_incorrect,
             AVG(CASE WHEN a.is_correct THEN 1 ELSE 0 END) AS accuracy_rate,
@@ -29,11 +29,11 @@ def get_synonym_word_aggregates(limit: int = 500, since_ts=None) -> List[Dict]:
             ) AS weakness_score
         FROM public.attempts a
         JOIN public.words w
-          ON w.id = a.sp_item_id
+          ON w.word_id = a.sp_item_id
         WHERE a.course_id = ANY(%(course_ids)s)
           AND a.sp_item_id IS NOT NULL
           AND (%(since_ts)s IS NULL OR a.ts > %(since_ts)s)
-        GROUP BY a.user_id, a.course_id, a.lesson_id, w.id
+        GROUP BY a.user_id, a.course_id, a.lesson_id, w.word_id
         ORDER BY last_attempt_at DESC
         LIMIT %(limit)s;
     """
