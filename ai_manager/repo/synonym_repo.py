@@ -9,7 +9,7 @@ def get_synonym_word_aggregates(limit: int = 500, since_ts=None) -> List[Dict]:
     """
     Aggregate synonym attempts at word level.
     Source of truth: public.attempts
-    Map attempts.sp_item_id -> synonym word_id (synonym_words.id).
+    Map attempts.sp_item_id -> canonical word_id (words.id).
     """
     sql = """
         SELECT
@@ -28,7 +28,7 @@ def get_synonym_word_aggregates(limit: int = 500, since_ts=None) -> List[Dict]:
                 + (1 - AVG(CASE WHEN a.is_correct THEN 1 ELSE 0 END)) * 0.3
             ) AS weakness_score
         FROM public.attempts a
-        JOIN public.synonym_words w
+        JOIN public.words w
           ON w.id = a.sp_item_id
         WHERE a.course_id = ANY(%(course_ids)s)
           AND a.sp_item_id IS NOT NULL
