@@ -27,7 +27,12 @@ def run_math_lane():
         )
 
         update_checkpoint(JOB_NAME, datetime.now(timezone.utc))
-        finish_job(job_id, "SUCCESS")
+        finish_job(
+            job_id,
+            status="SUCCESS",
+            processed_attempts=len(rows),
+            model_version="phase1-v1",
+        )
 
         print(
             "Math AI job complete: "
@@ -35,7 +40,7 @@ def run_math_lane():
         )
 
     except Exception as e:
-        finish_job(job_id, "FAILED", str(e))
+        finish_job(job_id, status="FAILED", error_message=str(e))
         raise
 
 

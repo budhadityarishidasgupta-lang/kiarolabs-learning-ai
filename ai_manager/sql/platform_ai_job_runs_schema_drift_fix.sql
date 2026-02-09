@@ -3,7 +3,7 @@
 
 BEGIN;
 
--- 1) Ensure job_name exists
+-- 1) Ensure lane exists
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -11,10 +11,10 @@ BEGIN
         FROM information_schema.columns
         WHERE table_schema = 'public'
           AND table_name = 'platform_ai_job_runs'
-          AND column_name = 'job_name'
+          AND column_name = 'lane'
     ) THEN
         ALTER TABLE public.platform_ai_job_runs
-        ADD COLUMN job_name TEXT;
+        ADD COLUMN lane TEXT;
     END IF;
 END$$;
 
