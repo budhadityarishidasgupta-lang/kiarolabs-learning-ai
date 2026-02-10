@@ -132,72 +132,38 @@ def upsert_synonym_word_insights(rows: List[Dict], job_run_id: int = None, model
 
 def get_synonym_lesson_rollups(limit: int = 200) -> List[Dict]:
     """
-    Build lesson-level rollups from synonym_ai_word_insights.
-    One row per (user_id, lesson_id), with top weak word_ids.
+    Build lesson-level rollups directly from attempts.
+    One row per (user_id, course_id, lesson_id).
     """
     sql = """
-        WITH word_ranked AS (
-            SELECT
-                user_id,
-                lesson_id,
-                word_id,
-                attempts_total,
-                attempts_incorrect,
-                accuracy_rate,
-                avg_response_ms,
-                last_attempt_at,
-                weakness_score,
-                ROW_NUMBER() OVER (
-                    PARTITION BY user_id, lesson_id
-                    ORDER BY weakness_score ASC, attempts_total DESC
-                ) AS rn
-            FROM public.synonym_ai_word_insights
-        ),
-        lesson_agg AS (
-            SELECT
-                user_id,
-                lesson_id,
-                SUM(attempts_total) AS attempts_total,
-                AVG(accuracy_rate) AS accuracy_rate,
-                AVG(avg_response_ms) AS avg_response_ms,
-                MAX(last_attempt_at) AS last_attempt_at
-            FROM public.synonym_ai_word_insights
-            GROUP BY user_id, lesson_id
-        ),
-        top_words AS (
-            SELECT
-                user_id,
-                lesson_id,
-                jsonb_agg(word_id ORDER BY rn) AS top_weak_word_ids
-            FROM word_ranked
-            WHERE rn <= 5
-            GROUP BY user_id, lesson_id
-        )
         SELECT
             a.user_id,
+            a.course_id,
             a.lesson_id,
-            a.attempts_total,
-            a.accuracy_rate,
-            a.avg_response_ms,
-            a.last_attempt_at,
-            COALESCE(t.top_weak_word_ids, '[]'::jsonb) AS top_weak_word_ids
-        FROM lesson_agg a
-        LEFT JOIN top_words t
-          ON t.user_id = a.user_id AND t.lesson_id = a.lesson_id
-        ORDER BY a.last_attempt_at DESC
-        LIMIT %s;
+            COUNT(*) AS attempts_total,
+            COUNT(*) FILTER (WHERE a.is_correct = FALSE) AS attempts_incorrect,
+            AVG(CASE WHEN a.is_correct THEN 1 ELSE 0 END) AS accuracy_rate,
+            AVG(a.response_ms) AS avg_response_ms,
+            MAX(a.ts) AS last_attempt_at,
+            MAX(a.ts) FILTER (WHERE a.is_correct = FALSE) AS last_incorrect_at
+        FROM public.attempts a
+        WHERE a.course_id = ANY(%(course_ids)s)
+          AND a.lesson_id IS NOT NULL
+        GROUP BY a.user_id, a.course_id, a.lesson_id
+        ORDER BY last_attempt_at DESC
+        LIMIT %(limit)s;
     """
 
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(sql, (limit,))
+            cur.execute(sql, {"course_ids": list(SYNONYM_COURSE_IDS), "limit": limit})
             rows = cur.fetchall()
             cols = [desc[0] for desc in cur.description]
 
     return [dict(zip(cols, row)) for row in rows]
 
 
-def upsert_synonym_lesson_insights(rows: List[Dict], model_version: str = "phase1-v1") -> int:
+def upsert_synonym_lesson_insights(rows: List[Dict], job_run_id: int = None, model_version: str = "phase1-v1") -> int:
     """
     Controlled upsert into synonym_ai_lesson_insights.
     Uses derived rollups from synonym_ai_word_insights.
@@ -205,50 +171,66 @@ def upsert_synonym_lesson_insights(rows: List[Dict], model_version: str = "phase
     sql = """
         INSERT INTO public.synonym_ai_lesson_insights (
             user_id,
+            course_id,
             lesson_id,
             attempts_total,
+            attempts_incorrect,
             accuracy_rate,
             avg_response_ms,
             last_attempt_at,
+            last_incorrect_at,
             top_weak_word_ids,
             summary_text,
             evaluated_at,
-            model_version
+            model_version,
+            job_run_id
         )
         VALUES (
             %(user_id)s,
+            %(course_id)s,
             %(lesson_id)s,
             %(attempts_total)s,
+            %(attempts_incorrect)s,
             %(accuracy_rate)s,
             %(avg_response_ms)s,
             %(last_attempt_at)s,
+            %(last_incorrect_at)s,
             %(top_weak_word_ids)s::jsonb,
             NULL,
             NOW(),
-            %(model_version)s
+            %(model_version)s,
+            %(job_run_id)s
         )
-        ON CONFLICT (user_id, lesson_id)
+        ON CONFLICT (user_id, lesson_id, course_id)
         DO UPDATE SET
             attempts_total    = EXCLUDED.attempts_total,
+            attempts_incorrect = EXCLUDED.attempts_incorrect,
             accuracy_rate     = EXCLUDED.accuracy_rate,
             avg_response_ms   = EXCLUDED.avg_response_ms,
             last_attempt_at   = EXCLUDED.last_attempt_at,
+            last_incorrect_at = EXCLUDED.last_incorrect_at,
             top_weak_word_ids = EXCLUDED.top_weak_word_ids,
             evaluated_at      = NOW(),
-            model_version     = EXCLUDED.model_version;
+            model_version     = EXCLUDED.model_version,
+            job_run_id        = EXCLUDED.job_run_id;
     """
 
     payload = []
     for r in rows:
+        top_word_ids = r.get("top_weak_word_ids", [])
         payload.append({
             "user_id": r["user_id"],
+            "course_id": r["course_id"],
             "lesson_id": r["lesson_id"],
             "attempts_total": r["attempts_total"],
+            "attempts_incorrect": r["attempts_incorrect"],
             "accuracy_rate": r["accuracy_rate"],
             "avg_response_ms": r["avg_response_ms"],
             "last_attempt_at": r["last_attempt_at"],
-            "top_weak_word_ids": json.dumps(r["top_weak_word_ids"]),
+            "last_incorrect_at": r["last_incorrect_at"],
+            "top_weak_word_ids": json.dumps(top_word_ids),
             "model_version": model_version,
+            "job_run_id": job_run_id,
         })
 
     if not payload:
