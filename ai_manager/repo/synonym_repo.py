@@ -169,18 +169,14 @@ def upsert_synonym_lesson_insights(rows: List[Dict], job_run_id: int = None, mod
     Uses derived rollups from synonym_ai_word_insights.
     """
     sql = """
-        INSERT INTO public.synonym_ai_lesson_insights (
+        INSERT INTO synonym_ai_lesson_insights (
             user_id,
             course_id,
             lesson_id,
-            attempts_total,
-            attempts_incorrect,
             accuracy_rate,
             avg_response_ms,
             last_attempt_at,
-            last_incorrect_at,
             top_weak_word_ids,
-            summary_text,
             evaluated_at,
             model_version,
             job_run_id
@@ -189,26 +185,19 @@ def upsert_synonym_lesson_insights(rows: List[Dict], job_run_id: int = None, mod
             %(user_id)s,
             %(course_id)s,
             %(lesson_id)s,
-            %(attempts_total)s,
-            %(attempts_incorrect)s,
             %(accuracy_rate)s,
             %(avg_response_ms)s,
             %(last_attempt_at)s,
-            %(last_incorrect_at)s,
-            %(top_weak_word_ids)s::jsonb,
-            NULL,
+            %(top_weak_word_ids)s,
             NOW(),
             %(model_version)s,
             %(job_run_id)s
         )
-        ON CONFLICT (user_id, lesson_id, course_id)
+        ON CONFLICT (user_id, lesson_id)
         DO UPDATE SET
-            attempts_total    = EXCLUDED.attempts_total,
-            attempts_incorrect = EXCLUDED.attempts_incorrect,
             accuracy_rate     = EXCLUDED.accuracy_rate,
             avg_response_ms   = EXCLUDED.avg_response_ms,
             last_attempt_at   = EXCLUDED.last_attempt_at,
-            last_incorrect_at = EXCLUDED.last_incorrect_at,
             top_weak_word_ids = EXCLUDED.top_weak_word_ids,
             evaluated_at      = NOW(),
             model_version     = EXCLUDED.model_version,
@@ -216,19 +205,15 @@ def upsert_synonym_lesson_insights(rows: List[Dict], job_run_id: int = None, mod
     """
 
     payload = []
-    for r in rows:
-        top_word_ids = r.get("top_weak_word_ids", [])
+    for row in rows:
         payload.append({
-            "user_id": r["user_id"],
-            "course_id": r["course_id"],
-            "lesson_id": r["lesson_id"],
-            "attempts_total": r["attempts_total"],
-            "attempts_incorrect": r["attempts_incorrect"],
-            "accuracy_rate": r["accuracy_rate"],
-            "avg_response_ms": r["avg_response_ms"],
-            "last_attempt_at": r["last_attempt_at"],
-            "last_incorrect_at": r["last_incorrect_at"],
-            "top_weak_word_ids": json.dumps(top_word_ids),
+            "user_id": row["user_id"],
+            "course_id": row["course_id"],
+            "lesson_id": row["lesson_id"],
+            "accuracy_rate": row["accuracy_rate"],
+            "avg_response_ms": row["avg_response_ms"],
+            "last_attempt_at": row["last_attempt_at"],
+            "top_weak_word_ids": json.dumps(row["top_weak_word_ids"]),
             "model_version": model_version,
             "job_run_id": job_run_id,
         })
